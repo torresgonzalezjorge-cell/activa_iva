@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es-CL">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Activa IVA · Previsión F29 · Chile</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <strong>Activa IVA</strong>
+        <span>Previsión F29 · Chile</span>
+      </div>
+      <label class="field-inline grow">Empresa
+        <select id="empresa-select" aria-label="Empresa"></select>
+      </label>
+      <button type="button" class="btn btn-ghost" id="btn-empresa-nueva">Nueva</button>
+      <button type="button" class="btn btn-ghost" id="btn-empresa-editar">Editar</button>
+      <label class="field-inline">Mes
+        <select id="mes-select" aria-label="Mes"></select>
+      </label>
+      <label class="field-inline">Año
+        <select id="anio-select" aria-label="Año"></select>
+      </label>
+      <label class="field-inline">UTM del período
+        <input id="utm-periodo" inputmode="decimal" aria-label="UTM del período" autocomplete="off">
+      </label>
+    </header>
+    <nav class="tabs" aria-label="Vistas">
+      <button type="button" data-view="resumen" class="active">Resumen F29 (Estilo SII)</button>
+      <button type="button" data-view="ventas">Ventas (Débito)</button>
+      <button type="button" data-view="compras">Compras (Crédito)</button>
+      <button type="button" data-view="historial">Historial / Borrador Imprimible</button>
+    </nav>
+    <main id="main"></main>
+  </div>
+
+  <dialog id="modal-empresa" class="modal">
+    <form id="form-empresa">
+      <header class="modal-head">
+        <h2 id="titulo-empresa">Empresa</h2>
+        <button type="button" class="btn btn-ghost" data-close>Cerrar</button>
+      </header>
+      <div class="form-grid">
+        <label>RUT<input name="rut" required autocomplete="off" placeholder="76.543.210-3"></label>
+        <label class="span-2">Razón social<input name="razon_social" required maxlength="160"></label>
+        <label>Régimen tributario
+          <select name="regimen_tributario" required>
+            <option>14D3 Pro Pyme</option>
+            <option>14D8 Transparente</option>
+            <option>14A General</option>
+          </select>
+        </label>
+        <label>Tasa PPM (%)<input name="tasa_ppm_pct" inputmode="decimal" value="1,00" required></label>
+        <label>Manejo de ILA
+          <select name="manejo_ila">
+            <option value="gasto_no_recuperable">Gasto no recuperable</option>
+            <option value="retenedor_ila">Retenedor de ILA</option>
+          </select>
+        </label>
+        <label class="check"><input name="activa" type="checkbox" checked> Empresa activa</label>
+      </div>
+      <p class="form-error" id="error-empresa" hidden></p>
+      <footer class="modal-actions">
+        <button type="button" class="btn btn-danger" id="btn-empresa-eliminar" hidden>Eliminar</button>
+        <button type="submit" class="btn btn-primary">Guardar empresa</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="modal-importar" class="modal">
+    <form id="form-importar">
+      <header class="modal-head">
+        <h2 id="titulo-importar">Importar CSV / XML del SII</h2>
+        <button type="button" class="btn btn-ghost" data-close>Cerrar</button>
+      </header>
+      <div class="form-grid">
+        <label class="span-2">Archivos del RCV o DTE
+          <input id="archivos-sii" name="archivos" type="file" accept=".csv,.xml,text/csv,text/xml,application/xml" multiple required>
+        </label>
+      </div>
+      <div id="reporte-importar" class="reporte-importar"></div>
+      <footer class="modal-actions">
+        <button type="submit" class="btn btn-primary">Cargar archivos</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden role="status"></div>
+  <script src="/js/app.js"></script>
+</body>
+</html>

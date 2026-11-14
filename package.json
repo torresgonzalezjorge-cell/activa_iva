@@ -1,0 +1,21 @@
+{
+  "name": "activa-iva",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Previsión del Formulario 29 para pymes en Chile",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/suite_iva_2026.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "multer": "^2.5.0",
+    "pg": "^8.13.1",
+    "xlsx": "^0.18.5"
+  }
+}

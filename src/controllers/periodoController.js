@@ -1,0 +1,108 @@
+const { calcularF29 } = require('../services/f29Engine');
+const { error, pool, numero, booleano, idParam } = require('./empresaController');
+
+function mesAnio(valorMes, valorAnio) {
+  const mes = Number(valorMes);
+  const anio = Number(valorAnio);
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12) throw error('El mes debe estar entre 1 y 12.', 400);
+  if (!Number.isInteger(anio) || anio < 2000 || anio > 2100) throw error('El año no es válido.', 400);
+  return { mes, anio };
+}
+
+async function documentosDe(periodoId) {
+  const { rows } = await pool().query(
+    'SELECT * FROM documentos_f29 WHERE periodo_id = $1 ORDER BY tipo_operacion, id',
+    [periodoId]
+  );
+  return rows;
+}
+
+async function armarF29(periodo) {
+  const empresa = await pool().query('SELECT * FROM empresas WHERE id = $1', [periodo.empresa_id]);
+  if (!empresa.rows[0]) throw error('No encontramos la empresa del período.', 404);
+  const documentos = await documentosDe(periodo.id);
+  return {
+    periodo,
+    empresa: empresa.rows[0],
+    documentos,
+    f29: calcularF29({ periodo, empresa: empresa.rows[0], documentos }),
+  };
+}
+
+async function asegurar(req, res) {
+  const empresaId = idParam(req.query.empresa_id || req.query.empresaId);
+  const { mes, anio } = mesAnio(req.query.mes, req.query.anio);
+  const existe = await pool().query('SELECT id FROM empresas WHERE id = $1', [empresaId]);
+  if (!existe.rows[0]) throw error('No encontramos esa empresa.', 404);
+  await pool().query(
+    `INSERT INTO periodos_tributarios (empresa_id, mes, anio)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (empresa_id, mes, anio) DO NOTHING`,
+    [empresaId, mes, anio]
+  );
+  const { rows } = await pool().query(
+    'SELECT * FROM periodos_tributarios WHERE empresa_id = $1 AND mes = $2 AND anio = $3',
+    [empresaId, mes, anio]
+  );
+  res.json(await armarF29(rows[0]));
+}
+
+function leerPeriodo(body) {
+  const datos = body || {};
+  const periodo = {};
+  const asignar = (destino, valor, nombre, minimo) => {
+    if (valor === undefined) return;
+    periodo[destino] = numero(valor, nombre, minimo);
+  };
+  asignar('valor_utm', datos.valor_utm ?? datos.valorUtm, 'la UTM', 0);
+  asignar('remanente_anterior_utm', datos.remanente_anterior_utm ?? datos.remanenteAnteriorUtm, 'el remanente anterior en UTM', 0);
+  asignar('ventas_proyectadas_netas', datos.ventas_proyectadas_netas ?? datos.ventasProyectadasNetas, 'las ventas proyectadas', 0);
+  asignar('compras_proyectadas_netas', datos.compras_proyectadas_netas ?? datos.comprasProyectadasNetas, 'las compras proyectadas', 0);
+  asignar('retenciones_honorarios', datos.retenciones_honorarios ?? datos.retencionesHonorarios, 'las retenciones de honorarios', 0);
+  asignar('iva_postergado_vencido', datos.iva_postergado_vencido ?? datos.ivaPostergadoVencido, 'el IVA postergado que vence', 0);
+  if (datos.postergar_iva !== undefined || datos.postergarIva !== undefined) {
+    periodo.postergar_iva = booleano(datos.postergar_iva ?? datos.postergarIva, false);
+  }
+  if (datos.estado !== undefined) {
+    if (!['abierto', 'cerrado'].includes(datos.estado)) throw error('El estado debe ser abierto o cerrado.', 400);
+    periodo.estado = datos.estado;
+  }
+  return periodo;
+}
+
+async function editar(req, res) {
+  const id = idParam(req.params.id);
+  const periodo = leerPeriodo(req.body);
+  const campos = Object.keys(periodo);
+  if (campos.length === 0) throw error('No hay datos para actualizar.', 400);
+  const valores = campos.map((campo) => periodo[campo]);
+  const asignaciones = campos.map((campo, indice) => `${campo} = $${indice + 1}`);
+  valores.push(id);
+  const { rows } = await pool().query(
+    `UPDATE periodos_tributarios SET ${asignaciones.join(', ')} WHERE id = $${valores.length} RETURNING *`,
+    valores
+  );
+  if (!rows[0]) throw error('No encontramos ese período.', 404);
+  res.json(await armarF29(rows[0]));
+}
+
+async function historial(req, res) {
+  const empresaId = idParam(req.query.empresa_id || req.query.empresaId);
+  const { rows } = await pool().query(
+    'SELECT * FROM periodos_tributarios WHERE empresa_id = $1 ORDER BY anio DESC, mes DESC',
+    [empresaId]
+  );
+  const periodos = [];
+  for (let i = 0; i < rows.length; i += 1) {
+    const armado = await armarF29(rows[i]);
+    periodos.push({
+      ...armado.periodo,
+      cod_91_total_pagar: armado.f29.real.cod_91_total_pagar,
+      cod_77_remanente_siguiente_pesos: armado.f29.real.cod_77_remanente_siguiente_pesos,
+      remanente_siguiente_utm: armado.f29.real.remanente_siguiente_utm,
+    });
+  }
+  res.json({ periodos });
+}
+
+module.exports = { asegurar, editar, historial, armarF29 };
