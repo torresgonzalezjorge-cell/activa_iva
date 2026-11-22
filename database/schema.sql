@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS empresas (
   id SERIAL PRIMARY KEY,
-  rut VARCHAR(12) UNIQUE NOT NULL,
+  rut VARCHAR(12) NOT NULL,
+  wordpress_user_id BIGINT,
   razon_social VARCHAR(160) NOT NULL,
   regimen_tributario VARCHAR(32) NOT NULL DEFAULT '14D3 Pro Pyme'
     CHECK (regimen_tributario IN ('14D3 Pro Pyme', '14D8 Transparente', '14A General')),
@@ -10,6 +11,10 @@ CREATE TABLE IF NOT EXISTS empresas (
   activa BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE empresas ADD COLUMN IF NOT EXISTS wordpress_user_id BIGINT;
+ALTER TABLE empresas DROP CONSTRAINT IF EXISTS empresas_rut_key;
+CREATE UNIQUE INDEX IF NOT EXISTS empresas_wordpress_user_rut_idx ON empresas (wordpress_user_id, rut);
 
 CREATE TABLE IF NOT EXISTS periodos_tributarios (
   id SERIAL PRIMARY KEY,

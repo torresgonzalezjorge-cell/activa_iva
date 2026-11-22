@@ -4,11 +4,13 @@ const path = require('path');
 const express = require('express');
 const api = require('./src/routes/api');
 const { initDb } = require('./src/config/db');
+const { installWordPressSession } = require('./wordpress-session');
 
 const app = express();
 const port = Number(process.env.PORT) || 3002;
 
 app.disable('x-powered-by');
+installWordPressSession(app, process.env.JWT_SECRET, 'app_iva_f29');
 app.use(express.json({ limit: '1mb' }));
 app.use('/api', api);
 app.use('/api', (_req, res) => {
@@ -48,10 +50,7 @@ app.use((error, _req, res, _next) => {
 });
 
 initDb()
-  .catch((error) => {
-    console.error('No se pudo preparar PostgreSQL:', error.message);
-  })
-  .finally(() => {
+  .then(() => {
     const server = app.listen(port, () => {
       console.log(`Activa IVA · Previsión F29 escuchando en http://localhost:${port}`);
     });
@@ -63,4 +62,8 @@ initDb()
       console.error(error);
       process.exit(1);
     });
+  })
+  .catch((error) => {
+    console.error('No se pudo preparar PostgreSQL:', error.message);
+    process.exitCode = 1;
   });

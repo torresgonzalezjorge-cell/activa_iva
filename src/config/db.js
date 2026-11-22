@@ -27,7 +27,7 @@ function connectionConfig() {
   if (url) {
     return {
       connectionString: url,
-      ssl: sslConfig(url) || { rejectUnauthorized: false },
+      ssl: sslConfig(url),
     };
   }
 
@@ -61,8 +61,17 @@ async function initDb() {
     return false;
   }
   const base = path.join(__dirname, '..', '..', 'database');
-  await current.query(fs.readFileSync(path.join(base, 'schema.sql'), 'utf8'));
-  await current.query(fs.readFileSync(path.join(base, 'seed_demo.sql'), 'utf8'));
+  const client = await current.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(fs.readFileSync(path.join(base, 'schema.sql'), 'utf8'));
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 
   const tablas = await current.query(
     `SELECT table_name
@@ -71,18 +80,16 @@ async function initDb() {
        AND table_name IN ('empresas', 'periodos_tributarios', 'documentos_f29')
      ORDER BY table_name`
   );
-  const empresas = await current.query(
-    'SELECT id, rut, razon_social, regimen_tributario FROM empresas ORDER BY id'
-  );
   const nombres = tablas.rows.map((fila) => fila.table_name);
   console.log(`Tablas en ${process.env.PGDATABASE || 'PostgreSQL'}: ${nombres.join(', ')}`);
-  if (empresas.rows[0]) {
-    const empresa = empresas.rows[0];
-    console.log(`Empresa de ejemplo: ${empresa.razon_social} (RUT ${empresa.rut}, ${empresa.regimen_tributario})`);
-  } else {
-    console.log('La tabla empresas quedó vacía.');
-  }
-  return nombres.length === 3 && empresas.rows.length > 0;
+  return nombres.length === 3;
 }
 
-module.exports = { getPool, initDb };
+async function seedDemo(userId) {
+  const current = getPool();
+  if (!current) throw new Error('PostgreSQL no está configurado.');
+  const sql = fs.readFileSync(path.join(__dirname, '..', '..', 'database', 'seed_demo.sql'), 'utf8');
+  await current.query(sql, [userId]);
+}
+
+module.exports = { getPool, initDb, seedDemo };

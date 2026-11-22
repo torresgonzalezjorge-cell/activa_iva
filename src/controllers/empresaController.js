@@ -1,4 +1,4 @@
-const { getPool } = require('../config/db');
+const { getPool, seedDemo } = require('../config/db');
 
 const REGIMENES = ['14D3 Pro Pyme', '14D8 Transparente', '14A General'];
 const MANEJOS = ['gasto_no_recuperable', 'retenedor_ila'];
@@ -104,8 +104,17 @@ function idParam(valor) {
   return id;
 }
 
-async function listar(_req, res) {
-  const { rows } = await pool().query('SELECT * FROM empresas ORDER BY razon_social');
+function userId(req) {
+  const id = req.sessionUser && req.sessionUser.user_id;
+  if (!Number.isSafeInteger(id) || id <= 0) throw error('Sesión inválida o vencida.', 401);
+  return id;
+}
+
+async function listar(req, res) {
+  const id = userId(req);
+  const db = pool();
+  await seedDemo(id);
+  const { rows } = await db.query('SELECT * FROM empresas WHERE wordpress_user_id = $1 ORDER BY razon_social', [id]);
   res.json({ empresas: rows });
 }
 
@@ -113,8 +122,8 @@ async function crear(req, res) {
   const empresa = leerEmpresa(req.body, false);
   try {
     const { rows } = await pool().query(
-      `INSERT INTO empresas (rut, razon_social, regimen_tributario, tasa_ppm_pct, manejo_ila, activa)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO empresas (rut, razon_social, regimen_tributario, tasa_ppm_pct, manejo_ila, activa, wordpress_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
       [
         empresa.rut,
@@ -123,6 +132,7 @@ async function crear(req, res) {
         empresa.tasa_ppm_pct,
         empresa.manejo_ila,
         empresa.activa,
+        userId(req),
       ]
     );
     res.status(201).json({ empresa: rows[0] });
@@ -139,10 +149,10 @@ async function editar(req, res) {
   if (campos.length === 0) throw error('No hay datos para actualizar.', 400);
   const valores = campos.map((campo) => empresa[campo]);
   const asignaciones = campos.map((campo, indice) => `${campo} = $${indice + 1}`);
-  valores.push(id);
+  valores.push(id, userId(req));
   try {
     const { rows } = await pool().query(
-      `UPDATE empresas SET ${asignaciones.join(', ')} WHERE id = $${valores.length} RETURNING *`,
+      `UPDATE empresas SET ${asignaciones.join(', ')} WHERE id = $${valores.length - 1} AND wordpress_user_id = $${valores.length} RETURNING *`,
       valores
     );
     if (!rows[0]) throw error('No encontramos esa empresa.', 404);
@@ -155,7 +165,7 @@ async function editar(req, res) {
 
 async function eliminar(req, res) {
   const id = idParam(req.params.id);
-  const { rowCount } = await pool().query('DELETE FROM empresas WHERE id = $1', [id]);
+  const { rowCount } = await pool().query('DELETE FROM empresas WHERE id = $1 AND wordpress_user_id = $2', [id, userId(req)]);
   if (!rowCount) throw error('No encontramos esa empresa.', 404);
   res.json({ ok: true });
 }
@@ -172,4 +182,5 @@ module.exports = {
   numero,
   booleano,
   idParam,
+  userId,
 };
